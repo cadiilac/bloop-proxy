@@ -1,0 +1,13 @@
+{
+  "name": "fast-proxy",
+  "version": "1.0.0",
+  "description": "Ultra-fast web proxy with CAPTCHA support",
+  "private": true,
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Build complete'"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}
