@@ -1,4 +1,3 @@
-// Ultra-fast edge-ready proxy with CAPTCHA support
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -8,13 +7,11 @@ exports.handler = async (event, context) => {
     'Access-Control-Max-Age': '86400',
   };
 
-  // Handle preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
   try {
-    // Get target URL from query param or path
     const url = event.queryStringParameters?.url || 
                 event.queryStringParameters?.proxied ||
                 event.queryStringParameters?.target ||
@@ -28,7 +25,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate URL
     let targetUrl;
     try {
       targetUrl = new URL(url.startsWith('http') ? url : `https://${url}`);
@@ -40,7 +36,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // CAPTCHA verification (optional - check for token)
     const captchaToken = event.queryStringParameters?.captcha || event.headers['x-captcha-token'];
     if (process.env.CAPTCHA_SECRET) {
       const verified = await verifyCaptcha(captchaToken, event.headers['x-forwarded-for'] || event.headers['client-ip']);
@@ -53,7 +48,6 @@ exports.handler = async (event, context) => {
       }
     }
 
-    // Build target headers (forward important ones)
     const forwardHeaders = {};
     const forwardable = ['accept', 'accept-language', 'accept-encoding', 'cache-control', 
                         'content-type', 'user-agent', 'referer', 'authorization', 'cookie'];
@@ -65,15 +59,13 @@ exports.handler = async (event, context) => {
       }
     });
 
-    // Handle request body
     let body = event.body;
     if (event.isBase64Encoded && body) {
       body = Buffer.from(body, 'base64');
     }
 
-    // Make the request with timeout
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout
+    const timeout = setTimeout(() => controller.abort(), 25000);
 
     const response = await fetch(targetUrl.toString(), {
       method: event.httpMethod,
@@ -85,31 +77,24 @@ exports.handler = async (event, context) => {
 
     clearTimeout(timeout);
 
-    // Process response headers
     const responseHeaders = { ...headers };
     response.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
-      // Skip problematic headers but keep most
       if (!['content-encoding', 'transfer-encoding', 'connection'].includes(lowerKey)) {
         responseHeaders[key] = value;
       }
     });
 
-    // Ensure content-type is set
     if (!responseHeaders['content-type']) {
       responseHeaders['content-type'] = 'text/html; charset=utf-8';
     }
 
-    // Get response body
     const responseBuffer = await response.arrayBuffer();
-    
-    // Inject CORS headers into HTML responses for iframe compatibility
     let finalBody = Buffer.from(responseBuffer);
     const contentType = responseHeaders['content-type'] || '';
     
     if (contentType.includes('text/html')) {
       let html = finalBody.toString('utf-8');
-      // Inject meta referrer and CORS support
       const injection = `<meta name="referrer" content="no-referrer"><base target="_top">`;
       html = html.replace(/<head[^>]*>/i, match => match + injection);
       finalBody = Buffer.from(html);
@@ -140,11 +125,9 @@ exports.handler = async (event, context) => {
   }
 };
 
-// CAPTCHA verification helper
 async function verifyCaptcha(token, remoteip) {
   if (!token) return false;
   
-  // hCaptcha verification
   if (process.env.HCAPTCHA_SECRET) {
     const res = await fetch('https://hcaptcha.com/siteverify', {
       method: 'POST',
@@ -159,7 +142,6 @@ async function verifyCaptcha(token, remoteip) {
     return data.success;
   }
   
-  // reCAPTCHA verification
   if (process.env.RECAPTCHA_SECRET) {
     const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
       method: 'POST',
@@ -173,6 +155,5 @@ async function verifyCaptcha(token, remoteip) {
     return data.success;
   }
   
-  // Simple token bypass for testing
   return token === process.env.CAPTCHA_BYPASS_TOKEN;
 }
