@@ -1,2 +1,3 @@
-# bloop-proxy
-This is Bloop Proxy, the official proxy for bloop.xo.je, it functions as the backend powering the magical Bloop Browser. 
+# Bloop Proxy
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/integration/start/deploy?repository=https://github.com/cadiilac/bloop-proxy/)
