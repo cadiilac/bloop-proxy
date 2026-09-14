@@ -1,4 +1,3 @@
-// Returns a CAPTCHA challenge page
 exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'text/html',
@@ -50,21 +49,17 @@ exports.handler = async (event) => {
 <body>
   <div class="container">
     <h1>🔒 Security Verification</h1>
-    <div class="target">${escapeHtml(targetUrl)}</div>
-    
+    <div class="target">${targetUrl.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
     <div class="h-captcha" 
          data-sitekey="${process.env.HCAPTCHA_SITE_KEY || '10000000-ffff-ffff-ffff-000000000001'}" 
          data-callback="onCaptchaSuccess"
          data-theme="dark"></div>
-    
     <div class="loading" id="loading">
       <div class="spinner"></div>
       <p>Verifying...</p>
     </div>
-    
     <div class="info">Complete the CAPTCHA to continue to your destination</div>
   </div>
-
   <script>
     function onCaptchaSuccess(token) {
       document.getElementById('loading').style.display = 'block';
@@ -72,24 +67,9 @@ exports.handler = async (event) => {
       const target = url.searchParams.get('url');
       window.location.href = '/api/proxy?url=' + encodeURIComponent(target) + '&captcha=' + token;
     }
-    
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
   </script>
 </body>
 </html>`;
 
   return { statusCode: 200, headers, body: html };
 };
-
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
