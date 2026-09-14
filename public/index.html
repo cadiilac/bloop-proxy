@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fast Proxy</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border-radius: 20px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+    }
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 2rem;
+    }
+    .input-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    input[type="url"] {
+      flex: 1;
+      padding: 1rem 1.25rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+    input[type="url"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      padding: 1rem 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+    button:active { transform: translateY(0); }
+    .options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+    .option {
+      padding: 0.75rem;
+      background: #f5f5f5;
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+      font-size: 0.9rem;
+    }
+    .option:hover {
+      background: #e8e8e8;
+      border-color: #667eea;
+    }
+    .result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: #f0f0f0;
+      border-radius: 12px;
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 0.85rem;
+      display: none;
+    }
+    .result.show { display: block; }
+    .copy-btn {
+      margin-top: 0.5rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+    }
+    .embed-code {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #1a1a2e;
+      color: #4fc3f7;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⚡ Fast Proxy</h1>
+    <p class="subtitle">Access any site through our high-speed proxy</p>
+    
+    <div class="input-group">
+      <input type="url" id="urlInput" placeholder="https://example.com" autofocus>
+      <button onclick="go()">Go</button>
+    </div>
+    
+    <div class="options">
+      <div class="option" onclick="setUrl('https://tiktok.com')">TikTok</div>
+      <div class="option" onclick="setUrl('https://youtube.com')">YouTube</div>
+      <div class="option" onclick="setUrl('https://twitter.com')">Twitter</div>
+      <div class="option" onclick="setUrl('https://reddit.com')">Reddit</div>
+      <div class="option" onclick="setUrl('https://instagram.com')">Instagram</div>
+      <div class="option" onclick="setUrl('https://github.com')">GitHub</div>
+    </div>
+    
+    <div class="result" id="result">
+      <strong>Direct Link:</strong>
+      <div id="directLink"></div>
+      <button class="copy-btn" onclick="copyLink()">Copy Link</button>
+      
+      <strong style="display:block;margin-top:1rem;">Embed in iframe:</strong>
+      <div class="embed-code" id="embedCode"></div>
+    </div>
+  </div>
+
+  <script>
+    function setUrl(url) {
+      document.getElementById('urlInput').value = url;
+      go();
+    }
+    
+    function go() {
+      const url = document.getElementById('urlInput').value.trim();
+      if (!url) return;
+      
+      const proxyUrl = window.location.origin + '/api/proxy?url=' + encodeURIComponent(url);
+      
+      // Show result
+      document.getElementById('directLink').textContent = proxyUrl;
+      document.getElementById('embedCode').textContent = 
+        `<iframe src="${proxyUrl}" width="100%" height="100%" frameborder="0"></iframe>`;
+      document.getElementById('result').classList.add('show');
+      
+      // Open in new tab
+      window.open(proxyUrl, '_blank');
+    }
+    
+    function copyLink() {
+      const text = document.getElementById('directLink').textContent;
+      navigator.clipboard.writeText(text);
+      event.target.textContent = 'Copied!';
+      setTimeout(() => event.target.textContent = 'Copy Link', 2000);
+    }
+    
+    // Allow Enter key
+    document.getElementById('urlInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') go();
+    });
+    
+    // Check for URL param
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('url') || params.get('target');
+    if (target) {
+      document.getElementById('urlInput').value = target;
+      go();
+    }
+  </script>
+</body>
+</html>
