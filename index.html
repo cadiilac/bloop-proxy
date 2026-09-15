@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="shortcut icon" href="./assets/bloop.png" type="image/png">
+<title>bloop</title>
+
+<!-- Meta tags -->
+<meta property="og:title" content="bloop">
+<meta property="og:description"
+    content="bloop — a simple, fast, and private web browsing experience.">
+<meta property="og:image" content="./assets/bloop.png">
+<meta name="theme-color" content="#3b82f6">
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+
+<!-- Existing scripts — paths intentionally unchanged -->
+<script src="./uv/uv.bundle.js"></script>
+<script src="./uv/uv.config.js"></script>
+<script src="./assets/register-sw.js"></script>
+
+<style>
+    :root {
+        --accent: #3b82f6;
+        --accent-soft: rgba(59, 130, 246, 0.14);
+        --accent-glow: rgba(59, 130, 246, 0.28);
+
+        --bg: #f4f7fb;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-solid: #ffffff;
+        --border: rgba(15, 23, 42, 0.09);
+        --text: #111827;
+        --muted: #64748b;
+        --shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+
+        --radius: 18px;
+    }
+
+    body.dark {
+        --bg: #070b12;
+        --surface: rgba(15, 22, 34, 0.82);
+        --surface-solid: #0f1622;
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --shadow: 0 25px 80px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "IBM Plex Sans", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+    }
+
+    body {
+        min-height: 100vh;
+        overflow-x: hidden;
+        transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    body::before {
+        content: "";
+        position: fixed;
+        inset: -30%;
+        background:
+            radial-gradient(circle at 20% 20%, var(--accent-glow), transparent 28%),
+            radial-gradient(circle at 80% 70%, var(--accent-soft), transparent 25%);
+        pointer-events: none;
+        z-index: -1;
+        opacity: 0.65;
+    }
+
+    /* Top navigation */
+
+    .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 13px 18px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+        backdrop-filter: blur(22px);
+        -webkit-backdrop-filter: blur(22px);
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        min-width: max-content;
+    }
+
+    .brand-dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 18px var(--accent-glow);
+    }
+
+    .browser-controls {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .control {
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-solid);
+        color: var(--muted);
+        cursor: pointer;
+        transition: 0.2s ease;
+    }
+
+    .control:hover {
+        color: var(--text);
+        border-color: var(--accent);
+        transform: translateY(-1px);
+    }
+
+    /* Tabs */
+
+    .tabs {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: 1;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tab {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 150px;
+        max-width: 230px;
+        padding: 9px 11px;
+        border: 1px solid transparent;
+        border-radius: 11px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        user-select: none;
+        transition: 0.2s ease;
+    }
+
+    .tab:hover {
+        background: var(--accent-soft);
+        color: var(--text);
+    }
+
+    .tab.active {
+        background: var(--surface-solid);
+        border-color: var(--border);
+        color: var(--text);
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.04);
+    }
+
+    .tab-icon {
+        width: 7px;
+        height: 7px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: var(--accent);
+    }
+
+    .tab-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+        font-size: 14px;
+    }
+
+    .tab-close {
+        opacity: 0.55;
+        font-size: 17px;
+        line-height: 1;
+    }
+
+    .tab-close:hover {
+        opacity: 1;
+    }
+
+    .new-tab {
+        width: 34px;
+        height: 34px;
+        flex-shrink: 0;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-solid);
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 20px;
+        transition: 0.2s ease;
+    }
+
+    .new-tab:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+    }
+
+    /* Main */
+
+    .container {
+        width: min(850px, calc(100% - 32px));
+        margin: 0 auto;
+        min-height: calc(100vh - 150px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 70px 0;
+    }
+
+    .home {
+        width: 100%;
+        text-align: center;
+    }
+
+    .logo-mark {
+        width: 76px;
+        height: 76px;
+        margin: 0 auto 25px;
+        border-radius: 24px;
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-glow);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 50px var(--accent-soft);
+    }
+
+    .logo-mark img {
+        width: 42px;
+        height: 42px;
+        object-fit: contain;
+        border-radius: 10px;
+    }
+
+    .header {
+        margin: 0;
+        font-size: clamp(42px, 8vw, 68px);
+        letter-spacing: -3px;
+        line-height: 1;
+        font-weight: 700;
+    }
+
+    .header span {
+        color: var(--accent);
+    }
+
+    .description {
+        max-width: 530px;
+        margin: 20px auto 34px;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.6;
+    }
+
+    .search-box {
+        position: relative;
+        width: min(680px, 100%);
+        margin: auto;
+    }
+
+    .input {
+        width: 100%;
+        height: 62px;
+        padding: 0 22px;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        outline: none;
+        background: var(--surface-solid);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 16px;
+        box-shadow: var(--shadow);
+        transition: 0.2s ease;
+    }
+
+    .input::placeholder {
+        color: var(--muted);
+    }
+
+    .input:focus {
+        border-color: var(--accent);
+        box-shadow:
+            0 0 0 4px var(--accent-soft),
+            var(--shadow);
+    }
+
+    /* Settings */
+
+    .settings {
+        position: fixed;
+        top: 70px;
+        right: 18px;
+        z-index: 200;
+        width: min(330px, calc(100vw - 36px));
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: var(--surface-solid);
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.2);
+        transform: translateY(-10px) scale(0.98);
+        opacity: 0;
+        pointer-events: none;
+        transition: 0.2s ease;
+    }
+
+    .settings.open {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .settings h2 {
+        margin: 0 0 5px;
+        font-size: 20px;
+    }
+
+    .settings-subtitle {
+        margin: 0 0 20px;
+        color: var(--muted);
+        font-size: 13px;
+    }
+
+    .setting {
+        padding: 15px 0;
+        border-top: 1px solid var(--border);
+    }
+
+    .setting-label {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .theme-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .theme-button {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-family: inherit;
+        transition: 0.2s ease;
+    }
+
+    .theme-button.active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+    }
+
+    .colors {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .color {
+        width: 29px;
+        height: 29px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        cursor: pointer;
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+
+    .color.active {
+        outline-color: var(--text);
+    }
+
+    .blue {
+        background: #3b82f6;
+    }
+
+    .purple {
+        background: #8b5cf6;
+    }
+
+    .pink {
+        background: #ec4899;
+    }
+
+    .green {
+        background: #10b981;
+    }
+
+    .orange {
+        background: #f97316;
+    }
+
+    .red {
+        background: #ef4444;
+    }
+
+    /* Footer */
+
+    .footer {
+        width: min(850px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 25px 0 35px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 13px;
+    }
+
+    .footer-links {
+        display: flex;
+        gap: 18px;
+    }
+
+    .footer a {
+        color: var(--muted);
+        text-decoration: none;
+        transition: 0.2s ease;
+    }
+
+    .footer a:hover {
+        color: var(--accent);
+    }
+
+    @media (max-width: 700px) {
+        .brand {
+            display: none;
+        }
+
+        .topbar {
+            padding: 10px;
+        }
+
+        .tab {
+            min-width: 130px;
+        }
+
+        .container {
+            padding: 50px 0;
+        }
+
+        .footer {
+            flex-direction: column;
+            gap: 15px;
+            text-align: center;
+        }
+    }
+</style>
+```
+
+</head>
+
+<body>
+
+```
+<!-- Browser-style top bar -->
+<header class="topbar">
+
+    <div class="brand">
+        <div class="brand-dot"></div>
+        bloop
+    </div>
+
+    <div class="browser-controls">
+        <button class="control" title="Back" onclick="history.back()">‹</button>
+        <button class="control" title="Forward" onclick="history.forward()">›</button>
+        <button class="control" title="Reload" onclick="location.reload()">↻</button>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+
+    <button class="new-tab" title="New tab" onclick="createTab()">+</button>
+
+    <button class="control" title="Settings" onclick="toggleSettings()">⚙</button>
+
+</header>
+
+<!-- Settings -->
+<aside class="settings" id="settings">
+
+    <h2>Settings</h2>
+    <p class="settings-subtitle">Customize your bloop experience.</p>
+
+    <div class="setting">
+        <span class="setting-label">Appearance</span>
+
+        <div class="theme-buttons">
+            <button class="theme-button" id="lightButton" onclick="setMode('light')">
+                Light
+            </button>
+
+            <button class="theme-button" id="darkButton" onclick="setMode('dark')">
+                Dark
+            </button>
+        </div>
+    </div>
+
+    <div class="setting">
+        <span class="setting-label">Color</span>
+
+        <div class="colors">
+            <button class="color blue" title="Blue" onclick="setColor('#3b82f6')"></button>
+            <button class="color purple" title="Purple" onclick="setColor('#8b5cf6')"></button>
+            <button class="color pink" title="Pink" onclick="setColor('#ec4899')"></button>
+            <button class="color green" title="Green" onclick="setColor('#10b981')"></button>
+            <button class="color orange" title="Orange" onclick="setColor('#f97316')"></button>
+            <button class="color red" title="Red" onclick="setColor('#ef4444')"></button>
+        </div>
+    </div>
+
+</aside>
+
+<!-- Main page -->
+<main class="container">
+
+    <section class="home">
+
+        <div class="logo-mark">
+            <img src="./assets/bloop.png" alt="bloop">
+        </div>
+
+        <h1 class="header">
+            bl<span>oop</span>
+        </h1>
+
+        <p class="description">
+            A clean, simple way to explore the web.
+            Enter a URL or search query to get started.
+        </p>
+
+        <div class="search-box">
+            <!-- IMPORTANT: class remains "input" so existing script.js keeps working -->
+            <input
+                type="text"
+                class="input"
+                placeholder="Enter a search query or URL"
+                autocomplete="off"
+                spellcheck="false">
+        </div>
+
+    </section>
+
+</main>
+
+<footer class="footer">
+
+    <div>
+        bloop
+    </div>
+
+    <div class="footer-links">
+        <a href="https://github.com/proudparrot2/ultraviolet" target="_blank" rel="noopener">
+            GitHub
+        </a>
+
+        <a href="https://github.com/titaniumnetwork-dev/ultraviolet" target="_blank" rel="noopener">
+            Ultraviolet
+        </a>
+    </div>
+
+</footer>
+
+<!-- Existing script — intentionally unchanged -->
+<script src="./assets/script.js" defer></script>
+
+<script>
+    /*
+     * bloop settings
+     * Stored locally so preferences survive page reloads.
+     */
+
+    const savedMode = localStorage.getItem("bloop-mode") || "light";
+    const savedColor = localStorage.getItem("bloop-color") || "#3b82f6";
+
+    function applyMode(mode) {
+        document.body.classList.toggle("dark", mode === "dark");
+
+        document.getElementById("lightButton")
+            .classList.toggle("active", mode === "light");
+
+        document.getElementById("darkButton")
+            .classList.toggle("active", mode === "dark");
+    }
+
+    function setMode(mode) {
+        localStorage.setItem("bloop-mode", mode);
+        applyMode(mode);
+    }
+
+    function setColor(color) {
+        localStorage.setItem("bloop-color", color);
+
+        document.documentElement.style.setProperty("--accent", color);
+
+        document.documentElement.style.setProperty(
+            "--accent-soft",
+            hexToRGBA(color, 0.14)
+        );
+
+        document.documentElement.style.setProperty(
+            "--accent-glow",
+            hexToRGBA(color, 0.28)
+        );
+
+        document.querySelectorAll(".color").forEach(button => {
+            button.classList.remove("active");
+        });
+
+        const colorMap = {
+            "#3b82f6": ".blue",
+            "#8b5cf6": ".purple",
+            "#ec4899": ".pink",
+            "#10b981": ".green",
+            "#f97316": ".orange",
+            "#ef4444": ".red"
+        };
+
+        if (colorMap[color]) {
+            document.querySelector(colorMap[color])
+                .classList.add("active");
+        }
+    }
+
+    function hexToRGBA(hex, alpha) {
+        const value = hex.replace("#", "");
+
+        const r = parseInt(value.substring(0, 2), 16);
+        const g = parseInt(value.substring(2, 4), 16);
+        const b = parseInt(value.substring(4, 6), 16);
+
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function toggleSettings() {
+        document.getElementById("settings")
+            .classList.toggle("open");
+    }
+
+    document.addEventListener("click", function (event) {
+        const settings = document.getElementById("settings");
+        const button = document.querySelector('[title="Settings"]');
+
+        if (
+            settings.classList.contains("open") &&
+            !settings.contains(event.target) &&
+            event.target !== button
+        ) {
+            settings.classList.remove("open");
+        }
+    });
+
+    /* Tabs */
+
+    let tabs = JSON.parse(
+        localStorage.getItem("bloop-tabs") || "null"
+    );
+
+    if (!Array.isArray(tabs) || tabs.length === 0) {
+        tabs = [
+            {
+                id: Date.now(),
+                name: "New Tab"
+            }
+        ];
+    }
+
+    let activeTab =
+        Number(localStorage.getItem("bloop-active-tab")) ||
+        tabs[0].id;
+
+    function saveTabs() {
+        localStorage.setItem("bloop-tabs", JSON.stringify(tabs));
+        localStorage.setItem("bloop-active-tab", activeTab);
+    }
+
+    function renderTabs() {
+        const container = document.getElementById("tabs");
+
+        container.innerHTML = "";
+
+        tabs.forEach(tab => {
+
+            const element = document.createElement("div");
+
+            element.className =
+                "tab" + (tab.id === activeTab ? " active" : "");
+
+            element.innerHTML = `
+                <span class="tab-icon"></span>
+                <span class="tab-name">${escapeHTML(tab.name)}</span>
+                <span class="tab-close" title="Close tab">×</span>
+            `;
+
+            element.addEventListener("click", function (event) {
+
+                if (event.target.classList.contains("tab-close")) {
+                    closeTab(tab.id);
+                    return;
+                }
+
+                activeTab = tab.id;
+                saveTabs();
+                renderTabs();
+            });
+
+            container.appendChild(element);
+        });
+    }
+
+    function createTab() {
+
+        const newTab = {
+            id: Date.now(),
+            name: "New Tab"
+        };
+
+        tabs.push(newTab);
+        activeTab = newTab.id;
+
+        saveTabs();
+        renderTabs();
+
+        const input = document.querySelector(".input");
+
+        if (input) {
+            input.value = "";
+            input.focus();
+        }
+    }
+
+    function closeTab(id) {
+
+        if (tabs.length === 1) {
+            tabs[0].name = "New Tab";
+            activeTab = tabs[0].id;
+            saveTabs();
+            renderTabs();
+            return;
+        }
+
+        const index = tabs.findIndex(tab => tab.id === id);
+
+        tabs = tabs.filter(tab => tab.id !== id);
+
+        if (activeTab === id) {
+            const nextTab =
+                tabs[index] ||
+                tabs[index - 1] ||
+                tabs[0];
+
+            activeTab = nextTab.id;
+        }
+
+        saveTabs();
+        renderTabs();
+    }
+
+    function escapeHTML(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    /* Initial settings */
+    applyMode(savedMode);
+    setColor(savedColor);
+    renderTabs();
+
+</script>
+
+</body>
+
+</html>
